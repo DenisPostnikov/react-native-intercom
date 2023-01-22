@@ -19,28 +19,36 @@ RCT_EXPORT_MODULE();
 // Available as NativeModules.IntercomWrapper.registerIdentifiedUser
 RCT_EXPORT_METHOD(registerIdentifiedUser:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     NSLog(@"registerIdentifiedUser");
-
+    
     NSString* userId      = options[@"userId"];
     NSString* userEmail   = options[@"email"];
-
+    
     if ([userId isKindOfClass:[NSNumber class]]) {
         userId = [(NSNumber *)userId stringValue];
     }
-
-    if (userId.length > 0 && userEmail.length > 0) {
-        [Intercom registerUserWithUserId:userId email:userEmail];
-        resolve(userId);
-    } else if (userId.length > 0) {
-        [Intercom registerUserWithUserId:userId];
-        resolve(userId);
-    } else if (userEmail.length > 0) {
-        [Intercom registerUserWithEmail:userEmail];
-        resolve(userEmail);
-    } else {
+    
+    if (userId.length == 0 && userEmail.length == 0) {
         NSLog(@"[Intercom] ERROR - No user registered. You must supply an email, a userId or both");
         reject(@"", @"No user registered. You must supply an email, a userId or both", nil);
+        return;
     }
-};
+    
+    ICMUserAttributes* _credentials = [ICMUserAttributes new];
+    _credentials.email = userEmail;
+    _credentials.userId = userId;
+
+    [Intercom loginUserWithUserAttributes:_credentials success:^{
+        if (userId.length > 0 && userEmail.length > 0) {
+            resolve(userId);
+        } else if (userId.length > 0) {
+            resolve(userId);
+        } else if (userEmail.length > 0) {
+            resolve(userEmail);
+        }
+    } failure:^(NSError * _Nonnull error) {
+        NSLog(@"[Intercom] ERROR - %@", error);
+    }];
+}
 
 // Available as NativeModules.IntercomWrapper.sendTokenToIntercom
 RCT_EXPORT_METHOD(sendTokenToIntercom:(NSString*)token resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
@@ -57,21 +65,28 @@ RCT_EXPORT_METHOD(sendTokenToIntercom:(NSString*)token resolver:(RCTPromiseResol
 // Available as NativeModules.IntercomWrapper.registerUnidentifiedUser
 RCT_EXPORT_METHOD(registerUnidentifiedUser :(RCTPromiseResolveBlock)resolve :(RCTPromiseRejectBlock)reject) {
     NSLog(@"registerUnidentifiedUser");
-    [Intercom registerUnidentifiedUser];
-    resolve([NSNull null]);
+    [Intercom loginUnidentifiedUserWithSuccess:^{
+        resolve([NSNull null]);
+    } failure:^(NSError * _Nonnull error) {
+        NSLog(@"[Intercom] ERROR - %@", error);
+    }];
 };
 
 // Available as NativeModules.IntercomWrapper.presentCarousel
 RCT_EXPORT_METHOD(presentCarousel:(NSString*)carouselID resolver: (RCTPromiseResolveBlock)resolve rejector:(RCTPromiseRejectBlock)reject) {
     NSLog(@"presentCarousel");
-    [Intercom presentCarousel:carouselID];
+    IntercomContent* _content = [IntercomContent new];
+    _content.contentId = carouselID;
+    [Intercom presentContent:_content];
     resolve([NSNull null]);
 };
 
 // Available as NativeModules.IntercomWrapper.presentArticle
 RCT_EXPORT_METHOD(presentArticle:(NSString*)articleID resolver: (RCTPromiseResolveBlock)resolve rejector:(RCTPromiseRejectBlock)reject) {
     NSLog(@"presentArticle");
-    [Intercom presentArticle:articleID];
+    IntercomContent* _content = [IntercomContent new];
+    _content.contentId = articleID;
+    [Intercom presentContent:_content];
     resolve([NSNull null]);
 };
 
@@ -90,8 +105,15 @@ RCT_EXPORT_METHOD(logout :(RCTPromiseResolveBlock)resolve :(RCTPromiseRejectBloc
 RCT_EXPORT_METHOD(updateUser:(NSDictionary*)options resolver:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject) {
     NSLog(@"updateUser");
     NSDictionary* attributes = options;
-    [Intercom updateUser:[IntercomUserAttributesBuilder userAttributesFromDictionary:attributes]];
-    resolve([NSNull null]);
+    
+    ICMUserAttributes* _credentials = [ICMUserAttributes new];
+    _credentials.customAttributes = attributes;
+    
+    [Intercom updateUser:_credentials success:^{
+        resolve([NSNull null]);
+    } failure:^(NSError * _Nonnull error) {
+        NSLog(@"[Intercom] ERROR - %@", error);
+    }];
 };
 
 // Available as NativeModules.IntercomWrapper.logEvent
@@ -123,7 +145,7 @@ RCT_EXPORT_METHOD(displayMessenger :(RCTPromiseResolveBlock)resolve :(RCTPromise
     dispatch_async(dispatch_get_main_queue(), ^{
         UIViewController *controller = RCTPresentedViewController();
         [RCTUtilsUIOverride setPresentedViewController:controller];
-        [Intercom presentMessenger];
+        [Intercom presentIntercom];
     });
 
     resolve([NSNull null]);
@@ -134,7 +156,7 @@ RCT_EXPORT_METHOD(hideMessenger :(RCTPromiseResolveBlock)resolve :(RCTPromiseRej
     NSLog(@"hideMessenger");
 
     dispatch_async(dispatch_get_main_queue(), ^{
-        [Intercom hideMessenger];
+        [Intercom hideIntercom];
     });
 
     resolve([NSNull null]);
@@ -147,7 +169,7 @@ RCT_EXPORT_METHOD(displayMessageComposer :(RCTPromiseResolveBlock)resolve :(RCTP
     dispatch_async(dispatch_get_main_queue(), ^{
         UIViewController *controller = RCTPresentedViewController();
         [RCTUtilsUIOverride setPresentedViewController:controller];
-        [Intercom presentMessageComposer];
+        [Intercom presentMessageComposer:@""];
     });
 
     resolve([NSNull null]);
@@ -159,7 +181,7 @@ RCT_EXPORT_METHOD(displayMessageComposerWithInitialMessage:(NSString*)message re
     dispatch_async(dispatch_get_main_queue(), ^{
         UIViewController *controller = RCTPresentedViewController();
         [RCTUtilsUIOverride setPresentedViewController:controller];
-        [Intercom presentMessageComposerWithInitialMessage:message];
+        [Intercom presentMessageComposer:message];
     });
 
     resolve([NSNull null]);
@@ -172,7 +194,7 @@ RCT_EXPORT_METHOD(displayConversationsList :(RCTPromiseResolveBlock)resolve :(RC
     dispatch_async(dispatch_get_main_queue(), ^{
         UIViewController *controller = RCTPresentedViewController();
         [RCTUtilsUIOverride setPresentedViewController:controller];
-        [Intercom presentConversationList];
+        [Intercom presentIntercom];
     });
 
     resolve([NSNull null]);
@@ -194,7 +216,7 @@ RCT_EXPORT_METHOD(displayHelpCenter :(RCTPromiseResolveBlock)resolve :(RCTPromis
     dispatch_async(dispatch_get_main_queue(), ^{
         UIViewController *controller = RCTPresentedViewController();
         [RCTUtilsUIOverride setPresentedViewController:controller];
-        [Intercom presentHelpCenter];
+        [Intercom presentIntercom:helpCenter];
     });
 
     resolve([NSNull null]);
@@ -242,7 +264,10 @@ RCT_EXPORT_METHOD(setupAPN:(NSString*)deviceToken resolver:(RCTPromiseResolveBlo
       [deviceTokenData appendBytes:&whole_byte length:1];
     }
 
-    [Intercom setDeviceToken:deviceTokenData];
+    [Intercom setDeviceToken:deviceTokenData
+                     failure:^(NSError * _Nullable error) {
+      NSLog(@"intercom setDeviceToken failure:%@", error);
+    }];
     resolve([NSNull null]);
 };
 
