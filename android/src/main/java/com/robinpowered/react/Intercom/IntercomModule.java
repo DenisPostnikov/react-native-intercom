@@ -43,7 +43,7 @@ public class IntercomModule extends ReactContextBaseJavaModule {
     }
 
     @Override
-    public boolean canOverrideExistingModule() {        
+    public boolean canOverrideExistingModule() {
         return true;
     }
 
@@ -94,7 +94,7 @@ public class IntercomModule extends ReactContextBaseJavaModule {
             promise.reject(e.toString());
         }
     }
-  
+
     @ReactMethod
     public void presentCarousel(String carouselID, Promise promise) {
         try {
@@ -197,7 +197,7 @@ public class IntercomModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void hideMessenger(Promise promise) {
         try {
-            Intercom.client().hideMessenger();
+            Intercom.client().hideIntercom();
             promise.resolve(null);
         } catch(Exception e) {
             Log.e(TAG, "Intercom not initialized");
